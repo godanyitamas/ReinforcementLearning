@@ -6,34 +6,36 @@ import numpy as np
 import tensorflow as tf
 import time
 
+
 # =============================================================== #
 #                           Parameters:
 # =============================================================== #
 
-agent = Agent(lr_actor=0.0003,      # Learning rate of actor
-              lr_critic=0.0001,     # Learning rate of critic
-              num_actions=4,        # Number of actions the agent can perform
-              num_states=24,        # Number of state inputs
+agent = Agent(lr_actor=0.0001,      # Learning rate of actor
+              lr_critic=0.001,      # Learning rate of critic
+              num_actions=2,        # Number of actions the agent can perform
+              num_states=8,         # Number of state inputs
               gamma=0.99,           # Gamma coefficient / discount factor
-              tau=0.002,            # Target network update parameter
+              tau=0.003,            # Target network update parameter
               delay_frequency=2,    # Delay rate of actor update
               batch_size=64)        # Batch size for networks / buffer
 
-noise_ = OUNoise(size=(1, 4),       # Size of noise output - matches action
-                 seed=4,            # Seed for noise
+noise_ = OUNoise(size=(1, 2),       # Size of noise output - matches action
+                 seed=2,            # Seed for noise
                  mu=0,              # Parameters of OU-noise
-                 theta=0.5,
-                 sigma=0.5)
+                 theta=0.15,
+                 sigma=0.2)
 
-buffer = Buffer(buffer_size=100000,
+buffer = Buffer(buffer_size=500000,
                 batch_size=agent.batch_size,
                 num_action=agent.num_actions,
                 num_states=agent.num_states)
 
-env = gym.make('BipedalWalker-v3')  # Name of the environment
-env.seed(2)
-num_episodes = 100000               # Number of episodes the agent does
-tf.random.set_seed(2)               # Init seed for the noise
+env = gym.make('LunarLanderContinuous-v2')
+env.seed(88)
+num_episodes = 5000                 # Number of episodes the agent does
+tf.random.set_seed(88)              # Init seed for the noise
+start_timestep = 100                # Number of time steps the agent behaves randomly
 total_timestep = 0                  # Defining total time step counter
 
 episodic_reward_list = []           # Counts the reward for one episode
@@ -71,6 +73,7 @@ print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('
 # =============================================================== #
 #                              Training:
 # =============================================================== #
+
 if __name__ == "__main__":
 
     for ep in range(1, num_episodes + 1):
@@ -86,17 +89,17 @@ if __name__ == "__main__":
             # Select an action with actor/policy:
             tf_state = tf.expand_dims(tf.convert_to_tensor(state), 0)
             # Explore / Exploit
-            if total_timestep < 10000:
+            if total_timestep < agent.batch_size:
                 action = env.action_space.sample()
             else:
                 action = tf.squeeze(actor(tf_state))
                 # Add noise, clip, reshape
-                # noise = tf.random.normal(shape=(1, 4), mean=0.0, stddev=0.2)
+                # noise = tf.random.normal(shape=(1, 2), mean=0.0, stddev=0.3)
                 noise = noise_.sample()
                 noise = np.clip(noise, -0.5, 0.5)
                 action += noise
                 action = np.clip(action, -1, 1)
-                action = np.reshape(action, newshape=(4, ))
+                action = np.reshape(action, newshape=(2, ))
             # Perform action, and get new information:
             new_state, reward, done, info = env.step(action)
             # Save reward:
@@ -118,10 +121,12 @@ if __name__ == "__main__":
 
             # Select action according to the actor/policy:
             next_action = actor_target(ns_batch)
-            noise = tf.random.normal(shape=(1, 4), mean=0.0, stddev=0.2)
+            noise = tf.random.normal(shape=(1, 2), mean=0.0, stddev=0.1)
+            # noise = noise_.sample()
             noise = np.clip(noise, -0.5, 0.5)
             next_action += noise
             next_action = np.clip(next_action, -1, 1)
+            # next_action = tf.convert_to_tensor(next_action)
 
             with tf.GradientTape(persistent=True) as tape:
                 # Target Q values via target critic networks (next state, next action)
@@ -139,7 +144,6 @@ if __name__ == "__main__":
                 # Loss is calculated as the sum of the MSE loss between target Q value and q1, q2
                 q1_loss = tf.keras.losses.MSE(y, q1)
                 q2_loss = tf.keras.losses.MSE(y, q2)
-                # q_loss = q1_loss + q2_loss
 
                 # Optimize critic networks:
             critic_gradient = tape.gradient(q1_loss, critic_1.trainable_variables)
@@ -201,8 +205,6 @@ if __name__ == "__main__":
             " Avg Reward -- {} \t Reward -- {}".format(ep, s // 3600, s % 3600 // 60, s % 60, timestep,
                                                        total_timestep, avg_reward.round(decimals=1),
                                                        episodic_reward))
-        if avg_reward > 300:
-            break
 
     # Saving the model, graph in a new folder:
     agent.save_log(actor, critic_1, critic_2, actor_target, critic_target_1, critic_target_2, average_reward_list,

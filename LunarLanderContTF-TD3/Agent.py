@@ -37,17 +37,21 @@ class Agent:
 
     def get_critic(self):
         """ Gets a state and action input, concatenates them, and returns Q value"""
-        state_input = layers.Input(shape=(self.num_states,), name='critic_input_s')
+        state_input = layers.Input(shape=(self.num_states), name='critic_input_s')
+        # state_output = layers.Dense(100, activation='relu')(state_input)
 
         action_input = layers.Input(shape=(self.num_actions,), name='critic_input_a')
+        # action_output = layers.Dense(100, activation='relu')(action_input)
 
         concat = layers.Concatenate()([state_input, action_input])
+        # print(concat) -> Tensor("concatenate_3/concat:0", shape=(None, 28),
+        # dtype=float32)
 
         c1 = layers.Dense(400, activation='relu', name='critic_fc1')(concat)
         c1 = layers.Dense(300, activation='relu', name='critic_fc2')(c1)
         c1 = layers.Dense(1, activation=None, name='critic_fc3')(c1)
         c1_model = tf.keras.Model([state_input, action_input], c1, name='critic_output')
-
+        # print(c1_model.summary())
         return c1_model
 
     def save_log(self, actor, critic_1, critic_2, target_actor, target_critic_1, target_critic_2, avg_reward_list,
@@ -66,8 +70,8 @@ class Agent:
         ta_path = os.path.join(mydir, 'target_actor.h5')
         tc1_path = os.path.join(mydir, 'target_critic1.h5')
         tc2_path = os.path.join(mydir, 'target_critic2.h5')
-        # a_model_path = os.path.join(mydir2, 'actor_model.png')
-        # c_model_path = os.path.join(mydir2, 'critic_model.png')
+        a_model_path = os.path.join(mydir2, 'actor_model.png')
+        c_model_path = os.path.join(mydir2, 'critic_model.png')
         print(mydir)
 
         # Saves weights for each network
@@ -87,7 +91,7 @@ class Agent:
         plt.plot(ep_reward_list, label='Epizódonkénti jutalom', alpha=0.5)
         plt.xlabel("Epizód")
         plt.ylabel("Jutalom")
-        plt.title("TD3-BipedalWalker-v3")
+        plt.title("TD3-LunarLanderContinuous-v2")
         plt.legend()
         # plt.show()
         plt.savefig(os.path.join(plotdir, 'avg_plot'))
